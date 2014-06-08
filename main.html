@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+		<link rel="stylesheet" type="text/css" href="../../css/main.css">
+		<link rel="stylesheet" type="text/css" href="../../css/jquery-ui-1.10.4.min.css">
+		<script type="text/javascript" src="../../lib/jquery2.0-min.js"></script>
+		<script type="text/javascript" src="../../lib/jquery-ui-1.10.4.min.js"></script>
+		<script type="text/javascript" src="../../main.js"></script>
+		<script src="http://localhost:9000/socket.io/socket.io.js"></script>
+		<script type="text/javascript">
+
+			$(function() {
+
+				var socket = io.connect('', {port: 9000});
+				var playerUid = window.location.pathname.split("/").slice(-1);
+				var newGame = new MarineBattle.GameState(2, socket);
+				newGame.open(playerUid);
+
+				socket.send("message", {
+					body: {
+						type: 'enter',
+						location: window.location
+					}
+				});
+
+				//получим номер игрока и кинем кубик
+				$.ajax({
+					url: '/player/' + newGame.getChannelId(),
+					type: 'json',
+					method: 'GET',
+					success: function(res) {
+						if (res) {
+							var data = JSON.parse(res);
+							newGame.setPlayerId(data.playerId);
+							newGame.popStage("roll");
+						}
+					}
+				})
+			})
+
+		</script>
+	</head>
+	<body>
+		<h1>Морской бой</h1>
+		<div class="container">
+		</div>
+		
+		<div id="positionLog">
+			<ul>
+				<li>Начало слева <span class="startX"></span></li>
+				<li>Начало слева <span class="startY"></span></li>
+				<li>Left  = <span class="curX"></span></li>
+				<li>Top   = <span class="curY"></span></li>
+			</ul>
+		</div>
+		<div id="log">
+		</div>
+	</body>
+</html>

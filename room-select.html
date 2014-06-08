@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Онлайн игра "Морской бой"</title>
+
+		<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+		<script type="text/javascript" src="lib/jquery2.0-min.js"></script>
+		<script type="text/javascript" src="lib/underscore.js"></script>
+		<script src="http://localhost:9000/socket.io/socket.io.js"></script>
+
+		<script type="text/javascript">
+			var state;
+			var socket = io.connect('', {port: 9000});
+
+			function updateRequest() {
+				$.ajax({
+					url: '/rooms',
+					dataType: 'json',
+					method: 'POST'
+				}).done(updateGameList);
+			}
+
+			function updateGameList(games) {
+				var btn;
+				var gameList = $(".game-list");
+				var gameInfo;
+				gameList.children().remove();
+
+				var template = [
+					'<span>',	
+					'#<%=idx%>',
+					'</span>',
+					'<span>',
+					'Кол-во игроков: <%=playersCount%>',
+					'</span>',
+					'<span>',
+					'Занято/Свободно: <%=isFull%>',
+					'</span>',
+					'<button onclick="connectToGame(this)">Подключится</button>'
+				].join("\r\n");
+
+				for (var g=0; g < games.length; g++) {
+
+					var gameInfo = games[g];
+					var li = $("<li></li>").appendTo(gameList);
+
+					li.html(_.template(template)({
+						idx: gameInfo.idx,
+						playersCount: gameInfo.playersCount,
+						isFull: gameInfo.isFull ? "Занято": "Свободно"
+					}));
+					btn = li.find('button')
+					btn.data("room_id", g);
+					//скрываем кнопку если игровая комната заблокирована
+					if (gameInfo.isFull || state == "waiting") {
+						btn.css('display', "none");
+					}
+				}
+			}
+
+			if (socket) {
+				updateRequest();
+			}
+
+			socket.on('message', function(msg) {
+				console.dir(msg);
+
+				if (msg.body.type === "start") {
+					//переходим на страницу игры
+					window.location = "/game/" + msg.body.gameId + "/" + msg.body.uuid;
+				}
+				//обновление списка игр
+
+				if (msg.body.type == "renew") {	
+					updateRequest();
+				}
+
+				if (msg.error) {
+					alert(msg.error);
+				}
+			});
+
+			function connectToGame(button) {
+
+				var button = $(button);
+
+				socket.send("message", {
+					body: {
+						roomId: button.data("room_id"),
+						// uuid: window.location.pathname.split("/").slice(-1),
+						type: 'preconnect'
+					}
+				});
+				button.css('display', "none");
+				state = "waiting";
+				console.log("SEND MESSAGE");
+			};
+		</script>
+	</head>
+	<body>
+		<div>
+		<h1>Морской бой</h1>
+		<h2>Подключится к игре</h2>
+		<ul class="game-list">	
+		</ul>
+		</div>
+	</body>
+</html>
