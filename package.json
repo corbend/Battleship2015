@@ -8,11 +8,10 @@
   "engines" : {
     "node" : ">=0.6"
   },
-  "depencies": {
-	"socket.io" : ">=1.0",
-	"node-uuid" : ">0.1",
+  "dependencies": {
 	"express": "3.x",
-	"cookie" : ">0.1",
-	"body-parser" ">0.1"
+	"socket.io": ">=1.x",
+	"cookie" : "0.x",
+	"body-parser" : ">=1.3"
   }
 }
