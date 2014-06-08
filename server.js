@@ -11,7 +11,7 @@ var bodyParser = require("body-parser");
 var app = express();
 var server = http.Server(app);
 server.listen(PORT, HOST);
-var io = require('socket.io').listen(8000);
+var io = require('socket.io').listen(server);
 
 
 var playRoom = require("./playroom").playRoom;
