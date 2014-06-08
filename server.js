@@ -1,5 +1,8 @@
 
-var PORT = 8080;
+var openShiftPort = process.env.OPENSHIFT_NODEJS_PORT;
+var openShiftHost = process.env.OPENSHIFT_NODEJS_IP;
+var PORT = openShiftPort || 8080;
+var HOST = openShiftHost || 'localhost';
 var http = require('http');
 var uuid = require('node-uuid');
 var express = require("express");
@@ -7,7 +10,7 @@ var bodyParser = require("body-parser");
 
 var app = express();
 var server = http.Server(app);
-server.listen(PORT);
+server.listen(PORT, HOST);
 var io = require('socket.io').listen(server);
 
 
