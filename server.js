@@ -39,7 +39,7 @@ app.get("/end/:gameId", function(req, res) {
     res.redirect("/");
 });
 
-app.post('/rooms', function(req, res) {
+app.get('/rooms', function(req, res) {
 	res.writeHeader("contenType", "application/json");
 	var rooms;
 	rooms = playRoom.showAll();
