@@ -12,7 +12,7 @@
 
 			$(function() {
 
-				var socket = io.connect('', {port: 9000});
+				var socket = io.connect('', {port: 8000});
 				var playerUid = window.location.pathname.split("/").slice(-1);
 				var newGame = new MarineBattle.GameState(2, socket);
 				newGame.open(playerUid);
