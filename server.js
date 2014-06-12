@@ -41,7 +41,7 @@ app.get("/end/:gameId", function(req, res) {
 });
 
 app.get('/rooms', function(req, res) {
-	res.writeHeader("contenType", "application/json");
+	res.setHeader("Content-Type", "application/json");
 	var rooms;
 	rooms = playRoom.showAll();
 	res.end(JSON.stringify(rooms));
@@ -71,7 +71,7 @@ app.get("/player/:gameId", function(req, res) {
     var gameId = parseInt(req.params.gameId);
     var room = playRoom.getRoom(gameId);
 
-    res.writeHeader("contenType", "application/json");
+    res.setHeader("Content-Type", "application/json");
 
     if (room.getPlayerCount() != 2) {
         res.end("Страница не доступна");
