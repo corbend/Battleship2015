@@ -11,6 +11,19 @@
 		finished: null
 	};
 
+	ns.MapConfig = {
+		shipColor: '#36D792',
+		hitColor: '#FC3F4D',
+		missColor: '#7279D8',
+		milkColor: '#FFEE73',
+		startMessage: 'Игра началась',
+		waitMessage: 'Оппонент готов к игре',
+		lossMessage: 'К сожалению Вы проиграли игру!',
+		winMessage: 'Поздравляем! Вы выиграли игру!',
+		incorrectPointMsg: 'Выберите другую точку!',
+		notPlacedMessage: 'Вы не разместили свои корабли!'
+	}
+
 	var game;
 
 	ns.CGame = function(playersCount, state, playerUid) {
@@ -22,16 +35,13 @@
 		startTime = new Date();
 		this.started = startTime;
 
-		//сокращение для 3 строчек
 		(this.gameMap = new MarineMap(10, 10, state)).init();
-
-		// gameMap = new MarineMap(10, 10, state);
-		// this.gameMap = gameMap;
-		// gameMap.init();
 
 		//статистика
 		this.hits = 0;
 		this.miss = 0;
+		this.opp_hits = 0;
+		this.opp_miss = 0;
 
 		this.isReady = function() {
 			//определяем соблюдены ли условия для начала игры
@@ -42,7 +52,7 @@
 			});
 
 			if (notReady.length > 0) {
-				alert("Вы не разместили все корабли!");
+				alert(ns.MapConfig.notPlacedMessage);
 				return false;
 			}
 
@@ -53,11 +63,11 @@
 			//проверка условий выйгрыша
 			var totalHitsToWin = 0;
 			mappedResources.forEach(function(res) {
-				totalHitsToWin += res.orientation == "H" ? res.width : res.height; 
+				totalHitsToWin += res.width * res.height; 
 			});
 
 			if (breakpoints === totalHitsToWin) {
-				alert("Вы победили!");
+				alert(ns.MapConfig.winMessage);
 				this.finished = new Date();
 				return true;
 			}
@@ -65,6 +75,35 @@
 
 		this.addCheckpoint = function() {
 			breakpoints++;
+		}
+
+		this.saveState = function(action, recepient) {
+			//метод в котором можно сохранять промежуточное состояние игры
+			//если была обработка собственного события
+			if (!recepient) {
+				if (action == "miss") {
+					this.miss++;
+					var el = $(".ship_miss");
+					el.find(".val").html(this.miss); 
+				}
+				if (action == "hit") {
+					this.hits++;
+					var el = $(".ship_hits");
+					el.find(".val").html(this.hits); 
+				}
+			} //если была обработка события оппонента
+			else {
+				if (action == "miss") {
+					this.opp_miss++;
+					var el = $(".opp_miss");
+					el.find(".val").html(this.opp_miss); 
+				}
+				if (action == "hit") {
+					this.opp_hits++;
+					var el = $(".opp_hits");
+					el.find(".val").html(this.opp_hits); 
+				}
+			}
 		}
 	}
 
@@ -141,18 +180,18 @@
 			if (eventName === "miss") {
 
 				if (domTarget.data("miss")) {
-					alert("Выберите другую точку!");
+					alert(ns.MapConfig.incorrectPointMsg);
 				} else {
 					domTarget.data("miss", true);
 					domTarget.addClass("miss");
 
-					// game.saveState("miss");
+					game.saveState("miss");
 				}
 
 			} 
 			else if (eventName === "hit") {
 				if (domTarget.data("hit")) {
-					alert("Выберите другую точку!");
+					alert(ns.MapConfig.incorrectPointMsg);
 				} else {
 					domTarget.data("hit", true);
 					domTarget.addClass("hit");
@@ -161,7 +200,7 @@
 					if (game.checkEndCondition()) {
 						window.location = "/end/" + me.getChannelId();
 					}
-					// game.saveState("hit");
+					game.saveState("hit");
 				}
 			}
 		}
@@ -174,14 +213,14 @@
 			$target = $(target);
 			var posX = $target.data("x");
 			var posY = $target.data("y");
-				
-			gameTargets = mappedResources;//me.getOpponentResources(opponentInfo);
+					
+			gameTargets = mappedResources;
 
 			gameTargets.forEach(function(obj) {
 
 				if (posX >= obj.positionX && posY >= obj.positionY &&
-					posX <= obj.positionX + (obj.orientation == "H" ? obj.width: 1) - 1 &&
-					posY <= obj.positionY + (obj.orientation == "H" ? 1: obj.height) - 1)
+					posX <= (obj.positionX + (obj.orientation == "H" ? obj.width: obj.height) - 1) &&
+					posY <= (obj.positionY + (obj.orientation == "H" ? obj.height: obj.width) - 1))
 				{
 					matchResources.push(obj);
 				}
@@ -196,24 +235,33 @@
 					y: posY
 				});
 
-				$target.css('backgroundColor', 'blue');
+				$target.css('backgroundColor', ns.MapConfig.missColor);
+				game.saveState("miss", 'self');
 			//попадание
 			} else {
 				me.log("result->"+"hit");
+				//TODO - нужно использовать коллбеки на потверждение
 				me.communicate({
 					result: 'hit',
 					x: posX,
 					y: posY
 				});
 
-				$target.css('backgroundColor', 'red');
+				$target.css('backgroundColor', ns.MapConfig.hitColor);
+				$target.css('zIndex', '9999');
+				game.saveState("hit", 'self');
 
 				$(".ui-draggable").each(function() {
 					var t = $(this);
 					if (t.offset().top == $target.offset().top && 
 						t.offset().left == $target.offset().left) {
 
-						t.css('display', 'none');
+						if (matchResources[0].orientation == "H") {
+							t.width(t.width - parseInt(ns.Map.fieldWidth));
+						} else {
+							t.height(t.height - parseInt(ns.Map.fieldHeight));
+						}
+
 					}
 				});
 			}
@@ -292,17 +340,17 @@
 			if (data.subtype && data.subtype == "ready") {
 
 				if (me.nextStage("start")) {
-					alert("!!START THE GAME!!");
+					alert(ns.MapConfig.startMessage);
 					me.popStage();
 					unlock_();
 				} else {				//оппонент готов
-					alert("--OPP READY. WAIT YOU!--");
+					alert(ns.MapConfig.waitMessage);
 				}
 
 			} else if (data.subtype && data.subtype == "start") {
 				if (me.nextStage("start")) {
 					var plId;
-					alert("!!START THE GAME!!");
+					alert(ns.MapConfig.startMessage);
 					me.popStage();
 					game.gameMap.memorizeResourse(me);
 					plId = me.getPlayerId();
@@ -347,7 +395,7 @@
 				me.log("action->" + data.result);
 
 			} else if (data.type && data.type == "end") {
-				alert("Вы проиграли игру(!");
+				alert(ns.MapConfig.lossMessage);
 				window.location = "/end/" + me.getChannelId();
 			}
 		});
@@ -499,7 +547,7 @@
 
 			if (update) {
 				var fields = $('.field');
-				fields.css('backgroundColor', 'white');
+				fields.css('backgroundColor', ns.MapConfig.milkColor);
 			}
 
 			this.resources.forEach(function(res) {
@@ -593,8 +641,6 @@
 			//создаем поле первого игрока
 			var mapPlayer1 = this.createGameMap(gameContainer, 1).css({
 				'position': 'absolute',
-				// 'left': 100,
-				// 'top': 200,
 				'top': container.offset().top,
 				'left': container.offset().left,
 				'display': 'block'
@@ -604,8 +650,6 @@
 			//создаем поле второго игрока
 			var mapPlayer2 = this.createGameMap(gameContainer, 2).css({
 				'position': 'absolute',
-				// 'left': 500 + parseInt(ns.Map.fieldWidth) * 2,
-				// 'top': 200,
 				'top': container.offset().top,
 				'left': container.offset().left + parseInt(container.css("width")) - parseInt(mapPlayer1.css('width')),
 				'display': 'block'
@@ -629,12 +673,12 @@
 					state.popStage();
 					me.createResources([
 						new SingleShip(mapPlayer1, 2, 1, 2),
-						// new SingleShip(mapPlayer1, 2, 1, 2),
-						// new SingleShip(mapPlayer1, 2, 6, 2),
-						// new DoubleShip(mapPlayer1, 3, 1, 4),
-						// new TripleShip(mapPlayer1, 1, 1, 6),
-						// new TripleShip(mapPlayer1, 1, 6, 6),
-						// new QuadShip(mapPlayer1, 1, 3, 8)
+						new SingleShip(mapPlayer1, 2, 1, 2),
+						new SingleShip(mapPlayer1, 2, 6, 2),
+						new DoubleShip(mapPlayer1, 3, 1, 4),
+						new TripleShip(mapPlayer1, 1, 1, 6),
+						new TripleShip(mapPlayer1, 1, 6, 6),
+						new QuadShip(mapPlayer1, 1, 3, 8)
 					]);
 				}
 			});
@@ -659,7 +703,7 @@
 	 						//сразу начинаем игру
 	 						state.uiLock(false);
 	 						state.bLock(true);
-	 						gameState.log("start the game!");
+	 						gameState.log("start the game!" + (new Date()).toString());
 	 						break;
 	 					case "start":
 	 						//ждем оппонента 
@@ -667,6 +711,14 @@
 							gameState.communicate("ready");
 							gameState.log("wait for opp!");
 	 				}
+
+	 				//снимаем обработчики событий с объектов поля
+	 				var objects = $(".ui-draggable");
+	 				objects.each(function(idx, item) {
+	 					$(item).draggable("option", "disabled", true);
+	 					$(item).off('click');
+	 					$(item).off('dblclick');
+	 				});
  				}
  				checkStage();
  				//блокируем кнопку
@@ -674,6 +726,11 @@
  				
 			});
 
+ 			var statisticsBar = $("<div class='statistics'></div>").appendTo(gameContainer);
+ 			statisticsBar.append("<div class='ship_hits'>Нанесено повреждений: <div class='val'></div></div>");
+			statisticsBar.append("<div class='ship_miss'>Промахи: <div class='val'></div></div>");
+			statisticsBar.append("<div class='opp_hits'>Нанесено повреждений: <div class='val'></div></div>");
+			statisticsBar.append("<div class='opp_miss'>Промахи оппонента: <div class='val'></div></div>");
 			// var firstButton = $("<button></button>").appendTo(controls);
 			// firstButton.click(function() {
 			// 	if (gameState.nextStage("fight")) {
@@ -750,26 +807,27 @@
 
 			drawStartX = this.leftPosition;
 			drawStartY = this.topPosition;
+
 			drawStartXSeg = (drawStartX - globalX) / segmentWidth;
 			drawStartYSeg = (drawStartY - globalY) / segmentWidth;
 
 			this.orientation = this.orientation == "H" ? "V" : "H";
+			this.positionX = drawStartXSeg;
+			this.positionY = drawStartYSeg;
+
 			if (this.inOwnContainer && !this.detectCollision(drawStartX, drawStartY)) {
 				this.DOMhelper.remove();
 				orient = this.orientation;
-
 				this.draw(drawStartXSeg, drawStartYSeg, orient, "player1");
-				this.positionX = drawStartXSeg;
-				this.positionY = drawStartYSeg;
-			} else {
-				this.orientation = this.orientation == "H" ? "V" : "H";
 			}
+
+			console.log(this.positionX + "," + this.positionY);
 		},
 		draw: function(startX, startY, orientation, playerField) {
 			var fields, containers, me = this;	
 
-			me.positionX = startX || this.startX;
-			me.positionY = startY || this.startY;
+			me.positionX = startX != null ? startX : this.startX;
+			me.positionY = startY != null ? startY : this.startY;
 
 			orientation = orientation || "H";
 			me.orientation = orientation;
@@ -794,7 +852,7 @@
 				"width": orientation == "H"? me.width * fieldWidth : me.height * fieldHeight,
 				"height": orientation == "H"? me.height * fieldHeight : me.width * fieldWidth,
 				// "border": "4px solid purple",
-				"backgroundColor": "green"
+				"backgroundColor": ns.MapConfig.shipColor
 			});
 
 			this.childBlocks.push(div);
@@ -953,6 +1011,14 @@
 							item.positionY = nonOffsetY / parseInt(ns.Map.fieldHeight);
 							item.inOwnContainer = true;
 							item.positionReady = true;
+							console.log("PARAMs->");
+							console.dir({
+								"lft": item.leftPosition,
+								"top": item.topPosition,
+								"lftX": item.positionX,
+								"lftY": item.positionY,
+								"orient": item.orientation
+							})
 						}
 						else {
 
@@ -993,7 +1059,7 @@
 			;
 		},
 		setHit: function(x, y) {
-			this.css('backgroundColor', 'red');
+			this.css('backgroundColor', ns.MapConfig.hitColor);
 		},
 		createObjects: function(count) {
 			this.createVariant(false);
