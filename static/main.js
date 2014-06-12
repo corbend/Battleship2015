@@ -507,7 +507,6 @@
 					fieldTop = j * parseInt(ns.Map.fieldHeight);
 
 					cssStyle = {
-						// "float" : "left",
 						"position": "absolute",
 						"left"  : fieldLeft,
 						"top"	: fieldTop,
@@ -672,7 +671,6 @@
 				if (state.nextStage("new")) {
 					state.popStage();
 					me.createResources([
-						new SingleShip(mapPlayer1, 2, 1, 2),
 						new SingleShip(mapPlayer1, 2, 1, 2),
 						new SingleShip(mapPlayer1, 2, 6, 2),
 						new DoubleShip(mapPlayer1, 3, 1, 4),
