@@ -12,7 +12,7 @@ var app = express();
 var server = http.Server(app);
 server.listen(PORT, HOST);
 var sio = require('socket.io');
-// var io = sio.listen(server);
+var io = sio.listen(server);
 
 
 var playRoom = require("./playroom").playRoom;
