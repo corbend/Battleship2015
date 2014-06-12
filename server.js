@@ -12,7 +12,7 @@ var app = express();
 var server = http.Server(app);
 server.listen(PORT, HOST);
 var sio = require('socket.io');
-var io = openShiftPort ? sio(80): sio.listen(server);
+var io = openShiftPort ? sio.listen(80): sio.listen(server);
 
 
 var playRoom = require("./playroom").playRoom;
