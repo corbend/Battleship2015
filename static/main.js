@@ -687,6 +687,16 @@
 			startButton.addClass('start_button');
 			startButton.html("Ready");
 
+			var blockBehavior = function() {
+				//снимаем обработчики событий с объектов поля
+	 			var objects = $(".ui-draggable");
+	 			objects.each(function(idx, item) {
+	 				$(item).draggable("option", "disabled", true);
+	 				$(item).off('click');
+	 				$(item).off('dblclick');
+	 			});
+			}
+
  			startButton.on('click', function(event) {
  				var nextStage = gameState.nextStage;
 
@@ -704,21 +714,16 @@
 	 						state.uiLock(false);
 	 						state.bLock(true);
 	 						gameState.log("start the game!" + (new Date()).toString());
+	 						blockBehavior();
 	 						break;
 	 					case "start":
 	 						//ждем оппонента 
 	 						state.uiLock(true);
 							gameState.communicate("ready");
 							gameState.log("wait for opp!");
+							blockBehavior();
 	 				}
-
-	 				//снимаем обработчики событий с объектов поля
-	 				var objects = $(".ui-draggable");
-	 				objects.each(function(idx, item) {
-	 					$(item).draggable("option", "disabled", true);
-	 					$(item).off('click');
-	 					$(item).off('dblclick');
-	 				});
+	 				
  				}
  				checkStage();
  				//блокируем кнопку
