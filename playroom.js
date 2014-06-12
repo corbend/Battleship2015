@@ -53,7 +53,6 @@ var Room = function(idx) {
 		return this.playerUids.indexOf(id) !== -1;
 	};
 	this.isFull = function() {
-		console.log(players.length);
 		return players.length == 2;
 	};
 	this.getPlayerCount = function() {
@@ -120,6 +119,25 @@ var PlayRoom = function(roomsCount) {
 		});
 	}
 
+	this.checkUid = function(uid) {
+		var roomCheck, room;
+		for (var r=0; r < this.rooms.length; r++) {
+			room = this.rooms[r];
+			if (room.playerUids.indexOf(uid) !== -1) {
+				roomCheck = true;
+			}
+		}
+
+		return roomCheck;
+	}
+	this.getAllActivePlayers = function() {
+		//возращает всех активных игроков
+		var players = [];
+		return this.rooms.map(
+			function(room) {
+				players = players.concat(room.players);
+			});
+	}
 };
 
 

@@ -76,7 +76,7 @@
 
 		var gameStages = ['new', 'plan', 'start', 'roll', 'fight', 'end'];
 		//dynamicLock - хранилище для блокировке для ожидания хода игрока
-		var lockQueue, dynamicLock;
+		var lockQueue, dynamicLock, sessionId;
 
 		lockQueue = [].concat(gameStages);
 		this.resources = [];
@@ -222,13 +222,20 @@
 		this.getChannelId = function () {
 			//достаем номер канала для рассылки сообщений
 			//FIXME - придумать что-нибудь получше
-			return window.location.pathname.split("/").slice(-2);
+			return window.location.pathname.split("/").slice(-2)[0];
 		}
 		this.setPlayerId = function(v) {
 			this.playerId = v;
 		}
 		this.getPlayerId = function() {
 			return this.playerId;
+		}
+		this.setSessionId = function(v) {
+			if (!sessionId) {
+				sessionId = v;
+			} else {
+				throw new Error("Trying to set new sessionId!");
+			}
 		}
 
 		var createMask = function() {
@@ -276,6 +283,11 @@
 			console.log("GAME MSG->");
 			console.dir(msg);
 			var data = msg.body;
+
+			if (data.uuid) {
+				me.setSessionId(data.uuid);
+			}
+
 			//TODO - валидация формата сообщения
 			if (data.subtype && data.subtype == "ready") {
 
@@ -345,6 +357,7 @@
 			var channelId = me.getChannelId();
 			socket.send("message", {
 				body: {
+					uuid   : sessionId || '-', 
 					type   : 'game',
 					subtype: msg,
 					roomId : this.getChannelId()
@@ -352,7 +365,12 @@
 			});
 		}
 
-		this.open = function(playerUid) {
+		this.open = function(playerUid, sessionUid) {
+			if (sessionUid) {
+				this.setSessionId(sessionUid);
+			} else {
+				throw new Error("Error - Session not identified!");
+			}
 			game = new ns.CGame(2, this, playerUid);
 		}
 

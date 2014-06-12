@@ -13,30 +13,46 @@
 			$(function() {
 
 				var socket = io();
-				var playerUid = window.location.pathname.split("/").slice(-1);
-				var newGame = new MarineBattle.GameState(2, socket);
-				newGame.open(playerUid);
-
-				socket.send("message", {
+				var gameUid = window.location.pathname.split("/").slice(-2)[0];
+				var sessionUid = window.location.pathname.split("/").slice(-2)[1];
+				
+				// socket.on('reset', function() {
+				// 	alert("SERVER restarted!")
+				// 	window.location = "/";
+				// });
+				//после редиректа на страницу игры посылаем сообщение что пользователь активен
+				socket.emit("enter"
+				, {
 					body: {
-						type: 'enter',
-						location: window.location
+						location: window.location?
+						gameUid: gameUid,
+						sessionUid: sessionUid
 					}
 				});
 
 				//получим номер игрока и кинем кубик
 				$.ajax({
-					url: '/player/' + newGame.getChannelId(),
+					url: '/player/' + gameUid,
 					type: 'json',
 					method: 'GET',
 					success: function(res) {
 						if (res) {
-							var data = JSON.parse(res);
-							newGame.setPlayerId(data.playerId);
-							newGame.popStage("roll");
+							try {
+								var data = typeof(res) == "string"? JSON.parse(res): res;
+								var newGame = new MarineBattle.GameState(2, socket);
+								newGame.open(gameUid, sessionUid);
+								newGame.setPlayerId(data.playerId);
+								newGame.popStage("roll");
+							} catch (e) {
+								alert(e);
+								window.location = "/"
+							}
+							finally {
+								;
+							}
 						}
 					}
-				})
+				});
 			})
 
 		</script>

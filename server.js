@@ -1,16 +1,20 @@
 
+
+var http = require('http');
+var uuid = require('node-uuid');
+var express = require("express");
+var events = require("events").EventEmitter;
+var bodyParser = require("body-parser");
+
 var openShiftPort = process.env.OPENSHIFT_NODEJS_PORT;
 var openShiftHost = process.env.OPENSHIFT_NODEJS_IP;
 var PORT = openShiftPort || 8080;
 var HOST = openShiftHost || 'localhost';
-var http = require('http');
-var uuid = require('node-uuid');
-var express = require("express");
-var bodyParser = require("body-parser");
 
 var app = express();
 var server = http.Server(app);
 server.listen(PORT, HOST);
+
 var sio = require('socket.io');
 var io = sio.listen(server);
 
@@ -77,7 +81,7 @@ app.get("/player/:gameId", function(req, res) {
         res.end("Страница не доступна");
     } else {
         res.end(JSON.stringify({
-            playerId: room.getPlayerCount() - 1,
+            playerId: room.getPlayerCount() - 1
         })) 
     }
 });
@@ -109,9 +113,17 @@ function sendMessage(outMessage, isBroadcasting) {
 freeIds = [].concat(playerIds);
 
 io.sockets.on('connection', function (socket) {
-	var state;
-	//выставляем игроку уникальный идентификатор
-	socket.emit("setId", getPlayerId());
+	var state, serverReseted = false;
+
+    //генерируем уникальный номер для 1 факта подключения
+    var playerUid = uuid.v4();
+
+    //в случае перезапуска сервера всем подключенным сокетам 
+    //нужно разослать сообщение об истекшей сессии
+    if (!serverReseted) {
+        socket.emit("redirect");
+        serverReseted = true;
+    }
 
     var onGameMsgHandler = function(channel, message) {
         var data, roomObject, msgBody, sendToAll = false;
@@ -207,7 +219,7 @@ io.sockets.on('connection', function (socket) {
         } 
     };
 
-    socket.on('message', function(channel, message) {
+    socket.on('message', function(channel, message, callback) {
     	var data, outMessage, room, isBroadcasting;
 
         console.log("NEW MESSAGE:");
@@ -217,7 +229,7 @@ io.sockets.on('connection', function (socket) {
 
         data = message.body;
         
-        if (data.type === "preconnect") {
+        if (typeof(message) == "object" && data.type === "preconnect") {
 			room = playRoom.getRoom(data.roomId)
 
         	room.addPlayer(socket);
@@ -256,25 +268,35 @@ io.sockets.on('connection', function (socket) {
         		console.log("BROADCAST MSG=" + outMessage);
         	}
 
-        } else if (data.type == "game") {
+        } 
+        else if (typeof(message) == "object" && data.type == "game") {
+            if (!playRoom.checkUid(data.uuid)) {
+                console.log("Error: failed to identify by uuid!");
+                return;
+            }
             onGameMsgHandler.apply(null, arguments);
         }
+        
+    });
+    //игрок вошел в игру
+    socket.on("enter", function(body, cb) {
+        console.log("Player Enter the Game!");
 
+        //FIXME - почем-то при вызове получается зависание браузера
+        if (cb) {
+            console.log(playerUid);
+            cb(true);
+            console.log("AFTER CALLBACK");
+        }
     });
 
     // Unsubscribe after a disconnect event
     socket.on('disconnect', function () {
-    	// if (state === "waiting") {
-    	// 	playRoom.freeRoom(socket);
-    	// 	console.log("disconnect WAITING");
-    	// } else {
-    	// 	console.log("disconnent ANY");
-    	// }
-    	//проверяем данный сокет находится в игре?
-    	// if (playRoom.checkInGame(socket)) {
-    	// 	var room = playRoom.getBySocket();
-    	// 	room.closeGame();
-    	// }
+        console.log();
+    	if (playerUid in playRoom.getAllActivePlayers()) {
+    		playRoom.freeRoom(socket);
+    		console.log("disconnect WAITING");
+    	}
     });
     console.log("connection estabilished!");
 });

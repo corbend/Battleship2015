@@ -58,28 +58,27 @@
 				}
 			}
 
-			updateRequest();
-
 			if (socket) {
 				updateRequest();
-				socket.on('message', function(msg) {
-					console.dir(msg);
-
-					if (msg.body.type === "start") {
-						//переходим на страницу игры
-						window.location = "/game/" + msg.body.gameId + "/" + msg.body.uuid;
-					}
-					//обновление списка игр
-
-					if (msg.body.type == "renew") {	
-						updateRequest();
-					}
-
-					if (msg.error) {
-						alert(msg.error);
-					}
-				});
 			}
+
+			socket.on('message', function(msg) {
+				console.dir(msg);
+
+				if (msg.body.type === "start") {
+					//переходим на страницу игры
+					window.location = "/game/" + msg.body.gameId + "/" + msg.body.uuid;
+				}
+				//обновление списка игр
+
+				if (msg.body.type == "renew") {	
+					updateRequest();
+				}
+
+				if (msg.error) {
+					alert(msg.error);
+				}
+			});
 
 			function connectToGame(button) {
 
