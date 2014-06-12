@@ -11,7 +11,8 @@ var bodyParser = require("body-parser");
 var app = express();
 var server = http.Server(app);
 server.listen(PORT, HOST);
-var io = require('socket.io').listen(server);
+var sio = require('socket.io');
+var io = openShiftPort ? sio(80): sio.listen(server);
 
 
 var playRoom = require("./playroom").playRoom;
