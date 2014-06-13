@@ -186,7 +186,8 @@ io.sockets.on('connection', function (socket) {
                 var gameData = {
                     result: data.subtype.result,
                     x: data.subtype.x,
-                    y: data.subtype.y
+                    y: data.subtype.y,
+                    destroyed: data.subtype.destroyed
                 };
                 var outmsg =  {
                     body: {

@@ -24,7 +24,55 @@
 		notPlacedMessage: 'Вы не разместили свои корабли!'
 	}
 
+	ns.StateNames = {
+		"new": 'Вы зашли в игру',
+		"plan": 'Планирование боя',
+		"start": 'Ожидание оппонента',
+		"fight": 'Бой начался'
+	}
+
 	var game;
+
+	helpers = {
+		alfaLabels: ['A', 'B', 'C', 'D', 'E', 'F', 'I', 'H', 'J', 'G'],
+		showCoordinates: function(x, y) {
+			return [this.alfaLabels[x], y].join("-");
+		}
+	}
+
+	//шина игровых событий для синхронизации действий пользователя с асинхронными событиями поступающими из вне (от другого пользователя)
+	var MsgBs = [];
+	//конвейер комманд пользователя
+	var CmdBs = [];
+
+	var ShareLock = {
+		_l: false
+	}
+
+	var Message = function(msg, callback) {
+		setTimeout(function() {
+			//крутим в рекурсии пока не освободится блокировка от действий пользователя
+			if (ShareLock._l) {
+				console.log("waiting user action");
+				Message(msg, callback);
+			}
+		}
+		, 100);
+
+		if (!ShareLock._l) {
+			console.log("print msg");
+			alert(msg);
+		}
+	}
+
+	var Command = function(fn) {
+
+		return function() {
+			ShareLock._l = true;
+			fn.apply(null, arguments);
+			ShareLock._l = false;
+		}
+	}
 
 	ns.CGame = function(playersCount, state, playerUid) {
 		//конструктор новой игры
@@ -35,6 +83,7 @@
 		startTime = new Date();
 		this.started = startTime;
 
+		//настраиваем игровое поле
 		(this.gameMap = new MarineMap(10, 10, state)).init();
 
 		//статистика
@@ -52,7 +101,7 @@
 			});
 
 			if (notReady.length > 0) {
-				alert(ns.MapConfig.notPlacedMessage);
+				Message(ns.MapConfig.notPlacedMessage);
 				return false;
 			}
 
@@ -67,7 +116,7 @@
 			});
 
 			if (breakpoints === totalHitsToWin) {
-				alert(ns.MapConfig.winMessage);
+				Message(ns.MapConfig.winMessage);
 				this.finished = new Date();
 				return true;
 			}
@@ -122,9 +171,7 @@
 
 		this.players = [1, 2];
 
-		var log = $("#log");
-
-		this.log = function(txt) {log.html(log.html() + "</br>" + txt)};
+		this.log = function(txt) {var log = $("#log"); log.html(log.html() + "</br>" + txt)};
 		//делаем активным первого игрока для теста
 		this.activePlayer = this.players[0];
 
@@ -139,15 +186,15 @@
 			return lockQueue.shift(stage);
 		}
 		this.popStage = function(v) {
-			var l = lockQueue
+			var l = lockQueue;
+
 			if (v != null) {
 				lockQueue = l.slice(0, l.indexOf(v)).concat(
 							l.slice(l.indexOf(v) + 1, l.length));
 			} else {
 				lockQueue = l.slice(1, l.length);
 			}
-			this.log("next stage->" + lockQueue[0] + "\r\n");
-			this.log("log  stage->" + JSON.stringify(lockQueue) + "\r\n");
+			this.log("ВНИМАНИЕ->" + ns.StateNames[lockQueue[0]] + "\r\n", 1);
 			return lockQueue
 		}
 
@@ -180,7 +227,7 @@
 			if (eventName === "miss") {
 
 				if (domTarget.data("miss")) {
-					alert(ns.MapConfig.incorrectPointMsg);
+					Message(ns.MapConfig.incorrectPointMsg);
 				} else {
 					domTarget.data("miss", true);
 					domTarget.addClass("miss");
@@ -191,7 +238,7 @@
 			} 
 			else if (eventName === "hit") {
 				if (domTarget.data("hit")) {
-					alert(ns.MapConfig.incorrectPointMsg);
+					Message(ns.MapConfig.incorrectPointMsg);
 				} else {
 					domTarget.data("hit", true);
 					domTarget.addClass("hit");
@@ -208,11 +255,12 @@
 		var acquire = function(target, opponentInfo) {
 			//@opponentInfo - данные по кораблям оппонента
 
+			var targetShip, posX, posY;
 			var gameTargets, matchResources = [], $target;
 				
 			$target = $(target);
-			var posX = $target.data("x");
-			var posY = $target.data("y");
+			posX = $target.data("x");
+			posY = $target.data("y");
 					
 			gameTargets = mappedResources;
 
@@ -228,7 +276,7 @@
 
 			//промах
 			if (matchResources.length == 0) {
-				me.log("result->"+"miss");
+				me.log("ХОД ОППОНЕНТА -> ПРОМАХ на " + helpers.showCoordinates(posX, posY + 1), 1);
 				me.communicate({
 					result: 'miss',
 					x: posX,
@@ -239,31 +287,40 @@
 				game.saveState("miss", 'self');
 			//попадание
 			} else {
-				me.log("result->"+"hit");
+				var destroyed;
+				targetShip = matchResources[0];
+				me.log("ХОД ОППОНЕНТА -> ПОПАДАНИЕ на " + helpers.showCoordinates(posX, posY + 1), 1);
+
+				if (targetShip.damage != null) {
+					targetShip.damage++;
+				} else {
+					targetShip.damage=1;
+				}
+
+				//проверка на уничтожение корабля
+				if (targetShip.damage == targetShip.width * targetShip.height) {
+
+					me.log("КОРАБЛЬ УНИЧТОЖЕН!");
+					targetShip.destroyed = true;
+					targetShip.DOMhelper.css({
+						'backgroundColor': 'black',
+						'zIndex': '9999'
+					});
+					destroyed = true;
+				}
+
 				//TODO - нужно использовать коллбеки на потверждение
 				me.communicate({
 					result: 'hit',
 					x: posX,
-					y: posY
+					y: posY,
+					destroyed: !!destroyed
 				});
 
 				$target.css('backgroundColor', ns.MapConfig.hitColor);
-				$target.css('zIndex', '9999');
+				$target.css('zIndex', '9998');
 				game.saveState("hit", 'self');
 
-				$(".ui-draggable").each(function() {
-					var t = $(this);
-					if (t.offset().top == $target.offset().top && 
-						t.offset().left == $target.offset().left) {
-
-						if (matchResources[0].orientation == "H") {
-							t.width(t.width - parseInt(ns.Map.fieldWidth));
-						} else {
-							t.height(t.height - parseInt(ns.Map.fieldHeight));
-						}
-
-					}
-				});
 			}
 		}
 
@@ -286,13 +343,12 @@
 			}
 		}
 
-		var createMask = function() {
+		var createMask = function(onMaskTarget) {
+			//накладывание маски для поля игрока-оппонента для блокирования посторонних действий
 			var mask;
-			var blockTarget = game.gameMap.map2;
-
 			mask = $("#mask");
 			if (!mask.length) {
-				mask = $("<div id='mask'></div>").appendTo(blockTarget);
+				mask = $("<div id='mask'></div>").appendTo(onMaskTarget);
 				mask.css({
 					position: 'absolute',
 					left: 0,
@@ -304,17 +360,38 @@
 			return mask;
 		}
 
+		var prepareTurnLabels = function(labelState) {
+			//переключение иконок состояния ходов
+			var $redLabel, $greenLabel;
+
+			$redLabel = $(".red-label");
+			$greenLabel = $(".green-label");
+
+			if (labelState === true) {
+				$redLabel.removeClass("deactive");
+				$greenLabel.addClass("deactive");
+			} else if (labelState === false) {
+				$redLabel.addClass("deactive");
+				$greenLabel.removeClass("deactive");
+			} else {
+				$redLabel.addClass("deactive");
+				$greenLabel.addClass("deactive");
+			}
+		}
+
 		this.uiLock = function(v) {
 			var msk;
 
 			if (v != null) {_lock = v; console.log("SET LOCK="+ v);}
 			
-			msk = createMask();
+			msk = createMask(game.gameMap.map2);
 			if (v === true) {
 				msk.css("display", 'block');
 			} else if (v === false) {
 				msk.css("display", 'none');
 			}
+
+			prepareTurnLabels(v);
 			
 			return _lock;
 		}
@@ -328,8 +405,8 @@
 
 		//подписываемся на канал событий
 		socket.on('game' + this.getChannelId(), function(msg) {
-			console.log("GAME MSG->");
-			console.dir(msg);
+			// console.log("GAME MSG->");
+			// console.dir(msg);
 			var data = msg.body;
 
 			if (data.uuid) {
@@ -340,17 +417,18 @@
 			if (data.subtype && data.subtype == "ready") {
 
 				if (me.nextStage("start")) {
-					alert(ns.MapConfig.startMessage);
+					Message(ns.MapConfig.startMessage);
 					me.popStage();
 					unlock_();
-				} else {				//оппонент готов
-					alert(ns.MapConfig.waitMessage);
+				} else {				
+					//оппонент готов
+					Message(ns.MapConfig.waitMessage);
 				}
 
 			} else if (data.subtype && data.subtype == "start") {
 				if (me.nextStage("start")) {
 					var plId;
-					alert(ns.MapConfig.startMessage);
+					Message(ns.MapConfig.startMessage);
 					me.popStage();
 					game.gameMap.memorizeResourse(me);
 					plId = me.getPlayerId();
@@ -365,7 +443,7 @@
 					}
 
 				} else {
-					alert("--ERROR--");
+					Message("--ERROR--");
 				}
 			} else if (data.subtype && data.subtype == "request") {
 				//запрос на выполнение действия от другого игрока
@@ -378,7 +456,6 @@
 					y = t.data("y");
 					//пришло сообщение об атаке
 					if (x == gameData.x && y == gameData.y) {
-						me.log("request->" + x + ", " + y);
 						acquire(t, gameData.playerData);
 					}
 				});
@@ -391,11 +468,18 @@
 				//обработка ответа после выполнения действия
 				//результат действия пользователя
 				//помечаем корабль (поле) как поврежденный или промах
+
 				me.addGameEvent(gameData.result, {x: gameData.x, y: gameData.y});
-				me.log("action->" + data.result);
+
+				var verboseActionName = gameData.result == "hit"? "Попадание": "Промах";
+
+				me.log("ВАШ ХОД->" + verboseActionName + " на " + helpers.showCoordinates(gameData.x, gameData.y + 1));
+				if (gameData.destroyed) {
+					me.log("КОРАБЛЬ ПРОТИВНИКА УНИЧТОЖЕН!");
+				}
 
 			} else if (data.type && data.type == "end") {
-				alert(ns.MapConfig.lossMessage);
+				Message(ns.MapConfig.lossMessage);
 				window.location = "/end/" + me.getChannelId();
 			}
 		});
@@ -530,7 +614,7 @@
 					if (j === 0) {
 						labelTop = fieldTop - parseInt(ns.Map.fieldHeight);
 						label = $('<div></div>').appendTo(gameMap);
-						label.html((alfaLabels[i]).toString());
+						label.html((helpers.alfaLabels[i]).toString());
 						label.addClass("label");
 						label.css(cssStyle).css("top", labelTop);
 					}
@@ -601,9 +685,9 @@
 						playerData: me.compactMapData()
 					});
 				} else if (nextStage("start")) {
-					alert("Opponent is not ready!");
+					Message("Opponent is not ready!");
 				} else {
-					alert("Unknown error!");
+					Message("Unknown error!");
 				}
 
 			}
@@ -685,6 +769,11 @@
 			startButton.addClass('start_button');
 			startButton.html("Ready");
 
+			//виджеты
+			var MyTurnWidget = $("<span class='info-label green-label deactive'>ВАШ ХОД</span>").prependTo(controls);
+			var OppTurnWidget = $("<span class='info-label red-label deactive'>ХОД ОППОНЕНТА</span>").prependTo(controls);
+			var Log = $("<div id='log'></div>").appendTo(controls);
+
 			var blockBehavior = function() {
 				//снимаем обработчики событий с объектов поля
 	 			var objects = $(".ui-draggable");
@@ -711,14 +800,12 @@
 	 						//сразу начинаем игру
 	 						state.uiLock(false);
 	 						state.bLock(true);
-	 						gameState.log("start the game!" + (new Date()).toString());
 	 						blockBehavior();
 	 						break;
 	 					case "start":
 	 						//ждем оппонента 
 	 						state.uiLock(true);
 							gameState.communicate("ready");
-							gameState.log("wait for opp!");
 							blockBehavior();
 	 				}
 	 				
@@ -730,21 +817,10 @@
 			});
 
  			var statisticsBar = $("<div class='statistics'></div>").appendTo(gameContainer);
- 			statisticsBar.append("<div class='ship_hits'>Нанесено повреждений: <div class='val'></div></div>");
-			statisticsBar.append("<div class='ship_miss'>Промахи: <div class='val'></div></div>");
-			statisticsBar.append("<div class='opp_hits'>Нанесено повреждений: <div class='val'></div></div>");
-			statisticsBar.append("<div class='opp_miss'>Промахи оппонента: <div class='val'></div></div>");
-			// var firstButton = $("<button></button>").appendTo(controls);
-			// firstButton.click(function() {
-			// 	if (gameState.nextStage("fight")) {
-			// 		state.bLock(false);
-			// 		console.log("You turn first!");
-			// 	}
-			// });
-			//кнопка поворота корабля на этапе размещения
-			// var rotateButton = $("<button></button>").appendTo(controls);
-			// rotateButton.addClass('rotate_button');
-			// rotateButton.html("Rotate");
+ 			statisticsBar.append("<div class='ship_hits'>Повреждения</br> <div class='val'>0</div></div>");
+			statisticsBar.append("<div class='ship_miss'>Промахи</br> <div class='val'>0</div></div>");
+			statisticsBar.append("<div class='opp_hits'>Повреждения</br>  <div class='val'>0</div></div>");
+			statisticsBar.append("<div class='opp_miss'>Промахи</br>  <div class='val'>0</div></div>");
 
 			//создание лога действий
 			var logView = $("<div></div>").appendTo(wraps);
@@ -768,6 +844,7 @@
 	ns.FieldComponent = {
 		width: 0,	//единица измерения - 1 клеточка поля
 		height: 0,  //единица измерения - 1 клеточка поля
+		damage: 0,
 		container: null, //Jquery компоненты-представление корабля на поле
 		childBlocks: null,
 		DOMhelper: null,
@@ -798,8 +875,8 @@
 			var segmentWidth = parseInt(ns.Map.fieldWidth);
 			var orient = "H";
 
-			globalX = $(".player1").position().left;
-			globalY = $(".player1").position().top;
+			globalX = Math.floor($(".player1").position().left);
+			globalY = Math.floor($(".player1").position().top);
 
 			if (this.width == 1 && this.height == 1) {return;}
 			segmentNumber = Math.floor(
@@ -811,8 +888,8 @@
 			drawStartX = this.leftPosition;
 			drawStartY = this.topPosition;
 
-			drawStartXSeg = (drawStartX - globalX) / segmentWidth;
-			drawStartYSeg = (drawStartY - globalY) / segmentWidth;
+			drawStartXSeg = Math.floor((drawStartX - globalX) / segmentWidth);
+			drawStartYSeg = Math.floor((drawStartY - globalY) / segmentWidth);
 
 			this.orientation = this.orientation == "H" ? "V" : "H";
 			this.positionX = drawStartXSeg;
@@ -863,35 +940,32 @@
 			var previousGeometry = {};
 
 			this.detectCollision = function(leftPosition, topPosition) {
-				var rightC, leftC, topC, bottomC;
+				var rightC, leftC, topC, bottomC,
+					detected = false
+				;
 
 				currMap = $(".player1");
-				mapLeft = currMap.position().left;
-				mapTop = currMap.position().top;
+				mapLeft = Math.floor(currMap.position().left);
+				mapTop = Math.floor(currMap.position().top);
 
-				leftPosition = leftPosition || this.leftPosition;
-				rightPosition = leftPosition + Number(this.getWidth());
-				topPosition = topPosition || this.topPosition;
-				bottomPosition = topPosition + Number(this.getHeight());
-
-				// console.log("self->");
-				// console.log(this.idx + "->posX:" + leftPosition);
-				// console.log(this.idx + "->posY:" + topPosition);
-				var detected = false;
+				leftPosition = Math.floor(leftPosition != null ? leftPosition : this.leftPosition);
+				rightPosition = Math.floor(leftPosition + Number(this.getWidth()));
+				topPosition = Math.floor(topPosition != null ? topPosition : this.topPosition);
+				bottomPosition = Math.floor(topPosition + Number(this.getHeight()));
 
 				mappedResources.forEach(function(resource) {
 
-					var rightEdge = Number(resource.leftPosition) + Number(resource.getWidth()) + parseInt(ns.Map.fieldWidth);
-					var bottomEdge = Number(resource.topPosition) + Number(resource.getHeight()) + parseInt(ns.Map.fieldHeight);
+					var rightEdge = Math.floor(Number(resource.leftPosition) + Number(resource.getWidth()) + parseInt(ns.Map.fieldWidth));
+					var bottomEdge = Math.floor(Number(resource.topPosition) + Number(resource.getHeight()) + parseInt(ns.Map.fieldHeight));
 
 					rightC = Number(leftPosition) < rightEdge;
 					bottomC = Number(topPosition) < bottomEdge;
 
-					leftC = (Number(leftPosition) + Number(this.getWidth())) >
-					    	 Number(resource.leftPosition) - parseInt(ns.Map.fieldWidth);
+					leftC = Math.floor((Number(leftPosition) + Number(this.getWidth()))) >
+					    	Math.floor(Number(resource.leftPosition) - parseInt(ns.Map.fieldWidth));
 
-					topC = (Number(topPosition) + Number(this.getHeight())) > 
-					   		Number(resource.topPosition) - parseInt(ns.Map.fieldHeight);
+					topC = Math.floor((Number(topPosition) + Number(this.getHeight()))) > 
+					   		Math.floor(Number(resource.topPosition) - parseInt(ns.Map.fieldHeight));
 					
 					// if (rightC) console.log("RIGHT EDGE COLLISION->" + rightC + "," + rightEdge);
 					// if (bottomC) console.log("BOTTOM EDGE COLLISION->" + bottomC + "," + bottomEdge);
@@ -908,8 +982,8 @@
 				
 				//выход за границы
 				if (leftPosition < mapLeft || topPosition < mapTop ||
-					rightPosition > (mapLeft + currMap.width()) ||
-					bottomPosition > (mapTop + currMap.height())
+					rightPosition > Math.floor((mapLeft + currMap.width())) ||
+					bottomPosition > Math.floor((mapTop + currMap.height()))
 				) {
 					detected = true;
 				}
@@ -929,7 +1003,7 @@
 					$("#positionLog .startY").html(previousGeometry.top);
 				},
 				drag: (function(item) {
-					return function(e, ui) {
+					return Command(function(e, ui) {
 						var pX, pY, leftEdge, topEdge,
 							parent, currentXOffset, currentYOffset,
 							relPX, relPY;
@@ -965,16 +1039,17 @@
 							ui.helper.position.left = pX;
 							ui.helper.position.top = pY;
 						}
-					}
+					});
 				})(this),
 				stop: (function(item) {
-					return function(e, ui) {
+					return Command(function(e, ui) {
 
 						var pX, pY, leftEdge, topEdge, nonOffsetY, nonOffsetX,
 							mapOffsetX, mapOffsetY;
 
-						mapOffsetX = myMap.offset().left;
-						mapOffsetY = myMap.offset().top;
+
+						mapOffsetX = Math.floor(myMap.offset().left);
+						mapOffsetY = Math.floor(myMap.offset().top);
 						leftEdge = mapOffsetX + myMap.width();
 						topEdge = mapOffsetY + myMap.height();
 
@@ -985,11 +1060,11 @@
 						var currentXOffset = parent.offset().left;
 						var currentYOffset = parent.offset().top;
 
-						pX = currentXOffset + ui.position.left;
-						pY = currentYOffset + ui.position.top;
+						pX = Math.floor(currentXOffset + ui.position.left);
+						pY = Math.floor(currentYOffset + ui.position.top);
 
-						nonOffsetX = pX - mapOffsetX;
-						nonOffsetY = pY - mapOffsetY;
+						nonOffsetX = parseInt(pX - mapOffsetX);
+						nonOffsetY = parseInt(pY - mapOffsetY);
 
 						//изменяем позицию элемента и создаем клон
 						//если элемент находится в зоне карты
@@ -1010,16 +1085,18 @@
 							item.leftPosition = pX;
 							item.topPosition = pY;
 							//переписываем координаты
-							item.positionX = nonOffsetX / parseInt(ns.Map.fieldWidth);
-							item.positionY = nonOffsetY / parseInt(ns.Map.fieldHeight);
+							item.positionX = Math.floor(nonOffsetX / parseInt(ns.Map.fieldWidth));
+							item.positionY = Math.floor(nonOffsetY / parseInt(ns.Map.fieldHeight));
+
 							item.inOwnContainer = true;
 							item.positionReady = true;
+
 							console.log("PARAMs->");
 							console.dir({
 								"lft": item.leftPosition,
 								"top": item.topPosition,
-								"lftX": item.positionX,
-								"lftY": item.positionY,
+								"cX": item.positionX,
+								"cY": item.positionY,
 								"orient": item.orientation
 							})
 						}
@@ -1030,24 +1107,26 @@
 								"top": previousGeometry.top
 							}, 500);
 						}
-					}
+					})
 				})(this)
 			});
 
-			div.on('dblclick', function(e) {
-				console.log("ROTATE");
-				if (selection) {
-					selection.rotateCW(
-						e.clientX,
-						e.clientY
-					);
-				}
-			});
+			div.on('dblclick', Command(function(e) {
+					console.log("ROTATE");
+					if (selection) {
+						selection.rotateCW(
+							e.clientX,
+							e.clientY
+						);
+					}
+				})
+			);
 
-			div.on('click', this, function(context) {
-				console.log("SELECT");
-				selection = context.data;
-			});
+			div.on('click', this, Command(function(context) {
+					console.log("SELECT");
+					selection = context.data;
+				})
+			);
 
 			mappedResources[this.idx] = this;
 
