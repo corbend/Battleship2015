@@ -43,6 +43,7 @@
 								newGame.open(gameUid, sessionUid);
 								newGame.setPlayerId(data.playerId);
 								newGame.popStage("roll");
+								window.game = newGame;
 							} catch (e) {
 								alert(e);
 								window.location = "/";

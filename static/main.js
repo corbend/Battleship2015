@@ -158,6 +158,15 @@
 
 	ns.CGame.prototype = ns.Game;
 
+	ns.State = {
+
+	};
+	Object.defineProperties(ns.State, {
+		game: {
+			get: function() {return game}
+		}
+	});
+
 	//игровое состояние
 	ns.GameState = function(plCount, socket) {
 		var me = this, stageCounter, _lock = false, breakpoints = [];
@@ -262,7 +271,7 @@
 			posX = $target.data("x");
 			posY = $target.data("y");
 					
-			gameTargets = mappedResources;
+			gameTargets = game.gameMap.mResources;
 
 			gameTargets.forEach(function(obj) {
 
@@ -554,6 +563,8 @@
 		}
 	}
 
+	ns.GameState.prototype = ns.State;
+
 	ns.Map = {
 		width: 10,
 		height: 10,
@@ -563,6 +574,12 @@
 
 	var mappedResources = [];
 	var selection = null;
+
+	Object.defineProperties(ns.Map, {
+		mResources: {
+			get: function() {return mappedResources;}
+		}
+	});
 
 	var MarineMap = function(width, height, state) {
 
@@ -719,25 +736,33 @@
 
 		this.createUI = function() {
 
-			var controls, wraps, map1, map2;
+			var controls, wraps, map1, map2, map1Left, map1Top, map2Left, map2Top;
 			var container = $(".container");
 			//создаем поле первого игрока
+			map1Left = container.offset().left;
+			map1Top = container.offset().top;
 			var mapPlayer1 = this.createGameMap(gameContainer, 1).css({
 				'position': 'absolute',
-				'top': container.offset().top,
-				'left': container.offset().left,
+				'top': map1Top,
+				'left': map1Left,
 				'display': 'block'
-			})
+			});
 			this.map1 = mapPlayer1;
 			mapPlayer1.addClass("player1");
+			mapCanvas1 = $("<div></div>").appendTo(mapPlayer1);
+			mapCanvas1.addClass("map-canvas");
 			//создаем поле второго игрока
+			map2Top = map1Top;
+			map2Left = container.offset().left + parseInt(container.css("width")) - parseInt(mapPlayer1.css('width'));
 			var mapPlayer2 = this.createGameMap(gameContainer, 2).css({
 				'position': 'absolute',
-				'top': container.offset().top,
-				'left': container.offset().left + parseInt(container.css("width")) - parseInt(mapPlayer1.css('width')),
+				'top': map2Top,
+				'left': map2Left,
 				'display': 'block'
 			});
 			mapPlayer2.addClass("player2");
+			mapCanvas2 = $("<div></div>").appendTo(mapPlayer2);
+			mapCanvas2.addClass("map-canvas");
 			this.map2 = mapPlayer2;
 			this.createFields(mapPlayer1);
 			this.createFields(mapPlayer2);
