@@ -172,7 +172,7 @@
 		var me = this, stageCounter, _lock = false, breakpoints = [];
 
 		var gameStages = ['new', 'plan', 'start', 'roll', 'fight', 'end'];
-		//dynamicLock - хранилище для блокировке для ожидания хода игрока
+		//dynamicLock - хранилище блокировки для ожидания хода игрока
 		var lockQueue, dynamicLock, sessionId;
 
 		lockQueue = [].concat(gameStages);
@@ -893,7 +893,7 @@
 			return measure * parseInt(ns.Map.fieldHeight)
 		},
 		rotateCW: function(pointX, pointY) {
-
+			var clone;
 			var newPosition, segmentNumber, drawStartX, drawStartY; 
 			var rotatePoint = {};
 			var parent = this.DOMhelper.parent();
@@ -902,7 +902,7 @@
 
 			globalX = Math.floor($(".player1").position().left);
 			globalY = Math.floor($(".player1").position().top);
-
+			//для однопалубных не имеет смысла
 			if (this.width == 1 && this.height == 1) {return;}
 			segmentNumber = Math.floor(
 				Math.abs(this.leftPosition - pointX) / segmentWidth);
@@ -916,17 +916,23 @@
 			drawStartXSeg = Math.floor((drawStartX - globalX) / segmentWidth);
 			drawStartYSeg = Math.floor((drawStartY - globalY) / segmentWidth);
 
-			this.orientation = this.orientation == "H" ? "V" : "H";
-			this.positionX = drawStartXSeg;
-			this.positionY = drawStartYSeg;
+			orient = this.orientation == "H" ? "V" : "H";
 
-			if (this.inOwnContainer && !this.detectCollision(drawStartX, drawStartY)) {
+			clone = $.extend(true, {}, this);
+
+			clone.positionX = drawStartXSeg;
+			clone.positionY = drawStartYSeg;
+			clone.orientation = orient;
+			//коллизии необходимо проверить после совершения поворота над клоном не трогая исходный объект
+			if (this.inOwnContainer && !clone.detectCollision(drawStartX, drawStartY)) {
 				this.DOMhelper.remove();
-				orient = this.orientation;
+				this.positionX = clone.positionX;
+				this.positionY = clone.positionY;
+				this.orientation = clone.orientation;
 				this.draw(drawStartXSeg, drawStartYSeg, orient, "player1");
-			}
-
-			console.log(this.positionX + "," + this.positionY);
+				return true;
+			} 
+			return false;
 		},
 		draw: function(startX, startY, orientation, playerField) {
 			var fields, containers, me = this;	
@@ -956,7 +962,6 @@
 				"top": (me.positionY * fieldHeight).toString() + "px",
 				"width": orientation == "H"? me.width * fieldWidth : me.height * fieldHeight,
 				"height": orientation == "H"? me.height * fieldHeight : me.width * fieldWidth,
-				// "border": "4px solid purple",
 				"backgroundColor": ns.MapConfig.shipColor
 			});
 
@@ -991,11 +996,6 @@
 
 					topC = Math.floor((Number(topPosition) + Number(this.getHeight()))) > 
 					   		Math.floor(Number(resource.topPosition) - parseInt(ns.Map.fieldHeight));
-					
-					// if (rightC) console.log("RIGHT EDGE COLLISION->" + rightC + "," + rightEdge);
-					// if (bottomC) console.log("BOTTOM EDGE COLLISION->" + bottomC + "," + bottomEdge);
-					// if (leftC) console.log("LEFT EDGE COLLISION->" + leftC + "," + Number(resource.leftPosition));
-					// if (topC) console.log("TOP EDGE COLLISION->" + topC + "," + Number(resource.topPosition));
 
 					if (this.idx != resource.idx &&
 					   ((rightC && bottomC) && (leftC && topC))) {
@@ -1003,7 +1003,6 @@
 					}
 
 				}, this);
-				
 				
 				//выход за границы
 				if (leftPosition < mapLeft || topPosition < mapTop ||
@@ -1020,7 +1019,7 @@
 				"appendTo": "body",
 				start: function(e, ui) {
 					//сохраняем стартовые позиции элемента перед захватом
-					//для того чтобы вернуть его назад в случае неверного "падения"
+					//для того чтобы вернуть его назад в случае неверного "падения" (выхода за границы, наличия других объектов рядом)
 					previousGeometry.left = ui.helper.position().left;
 					previousGeometry.top = ui.helper.position().top;
 
@@ -1031,7 +1030,10 @@
 					return Command(function(e, ui) {
 						var pX, pY, leftEdge, topEdge,
 							parent, currentXOffset, currentYOffset,
-							relPX, relPY;
+							relPX, relPY, outerBoundLeft, outerBoundTop;
+
+						outerBoundTop = 20;
+						outerBoundLeft = 20;
 
 						leftEdge = myMap.position().left + myMap.width();
 						topEdge = myMap.position().top + myMap.height();
@@ -1049,14 +1051,23 @@
 
 						//если элемент находится в нужном контейнере
 						//включаем режим привязки 
-						if (((pX < leftEdge && pX > myMap.position().left) &&
-							  pY < topEdge && pY > myMap.position().top)) {
+						if (((pX < leftEdge + 40 && pX > myMap.position().left - 40) &&
+							  pY < topEdge + 40 && pY > myMap.position().top - 40)) {
 
 							var fWidth = parseInt(ns.Map.fieldWidth);
 							var fHeight = parseInt(ns.Map.fieldHeight);
 
 							ui.helper.draggable("option", "grid", [fWidth, fHeight]);
 
+						} else if (pX > leftEdge && pX < (leftEdge + outerBoundLeft)) {
+							//если объект находится за небольшой внешней границей то сглаживаем это
+							ui.helper.position.left = leftEdge;
+						} else if (pY > topEdge && pY < (topEdge + outerBoundTop)) {
+							ui.helper.position.top = topEdge;
+						} else if (pX < myMap.position().left && pX > (myMap.position().left - outerBoundLeft)) {
+							ui.helper.position.left = myMap.position().left;
+						} else if (pY < myMap.position().top && pY > (myMap.position().top - outerBoundTop)) {
+							ui.helper.position.top = myMap.position().top;
 						} else {
 							ui.helper.draggable("option", "snap", false);
 							ui.helper.draggable("option", "grid", false);
@@ -1136,14 +1147,18 @@
 				})(this)
 			});
 
-			div.on('dblclick', Command(function(e) {
-					console.log("ROTATE");
-					if (selection) {
-						selection.rotateCW(
-							e.clientX,
-							e.clientY
-						);
+			div.on('dblclick', this, Command(function(context) {
+
+					if (!selection) {
+						selection = context.data;
 					}
+					
+					if (
+						selection.rotateCW(
+							context.clientX,
+							context.clientY
+						)
+					) {	console.log("ROTATE");}
 				})
 			);
 
@@ -1157,13 +1172,8 @@
 
 			return div;
 		},
-		createElement: function() {
-			//ищем соседние элементы
-			var x, y;
-		},
 		isDestroy: function() {
-			//
-			;
+			return this.destroyed;
 		},
 		setHit: function(x, y) {
 			this.css('backgroundColor', ns.MapConfig.hitColor);
@@ -1192,9 +1202,6 @@
 							}
 						}
 						return jsonE;
-					},
-					fromJson: function() {
-
 					}
 				};
 				newObject.draw = this.draw;
@@ -1210,6 +1217,64 @@
 		}
 
 	}	
+
+	Object.defineProperties(ns.FieldComponent, {
+		leftPosition: {
+			set: function(v) {
+				this._prevLeftPos = this.leftPosition;
+				this._leftPos = v;
+			},
+			get: function() {
+				if (this._leftPos === void 0) this._leftPost = 0;
+				return this._leftPos;
+			},
+			configurable: false
+		},
+		topPosition: {
+			set: function(v) {
+				this._prevTopPos = this.topPosition;
+				this._topPos = v;
+			},
+			get: function() {
+				if (this._topPos === void 0) this._topPost = 0;
+				return this._topPos;
+			},
+			configurable: false
+		},
+		positionX: {
+			set: function(v) {
+				this._prevCellPosX = this.positionX;
+				this._cellPosX = v;
+			},
+			get: function() {
+				if (this._cellPosX === void 0) this._cellPosX = 0;
+				return this._cellPosX;
+			},
+			configurable: false
+		},
+		positionY: {
+			set: function(v) {
+				this._prevCellPosY = this.positionY;
+				this._cellPosY = v;
+			},
+			get: function() {
+				if (this._cellPosY === void 0) this._cellPosY = 0;
+				return this._cellPosY;
+			},
+			configurable: false
+		},
+		orientation: {
+			set: function(v) {
+				this._prevOrient = this.orientation;
+				this._orient = v;
+			},
+			get: function() {
+				if (this._orient === void 0) this._orient = "H";
+				return this._orient;
+			},
+			configurable: false
+		}
+	});
 
 	var SingleShip = function(map, count, placeX, placeY) {
 		this.type = "single";
