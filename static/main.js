@@ -2,7 +2,7 @@
 (function($, global) {
 
 	var ns = global.MarineBattle = global.MarineBattle || {};
-
+	//commit test
 	ns.Game = {
 		players: 0,
 		hits: 0,
