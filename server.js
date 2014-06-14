@@ -74,6 +74,12 @@ app.get("/game/:gameId/:Uid", function(req, res) {
 app.get("/player/:gameId", function(req, res) {
     var gameId = parseInt(req.params.gameId);
     var room = playRoom.getRoom(gameId);
+    //берем id игрока из промежуточного буфера
+    var info = room.handleObjects.pop();
+
+    playRoom.setPlayerInfo(gameId, {
+        playerUid: info['uid']
+    });
 
     res.setHeader("Content-Type", "application/json");
 
@@ -81,7 +87,8 @@ app.get("/player/:gameId", function(req, res) {
         res.end("Страница не доступна");
     } else {
         res.end(JSON.stringify({
-            playerId: room.getPlayerCount() - 1
+            playerId: room.getPlayerCount() - 1,
+            playerUid: info['uid']
         })) 
     }
 });
@@ -116,8 +123,9 @@ io.sockets.on('connection', function (socket) {
 	var state, serverReseted = false;
 
     //генерируем уникальный номер для 1 факта подключения
-    var playerUid = uuid.v4();
+    var playerUid = socket.__playerUid !=null ? socket.__playerUid : socket.__playerUid = uuid.v4();
 
+    console.log("generate new playerId=" + playerUid);
     //в случае перезапуска сервера всем подключенным сокетам 
     //нужно разослать сообщение об истекшей сессии
     if (!serverReseted) {
@@ -157,6 +165,7 @@ io.sockets.on('connection', function (socket) {
                     console.dir(roomObject.playerStatuses);
                     console.log(nStatuses);
                     roomObject.playerStatuses = nStatuses;
+                    
                     console.log("SEND READY!");
                 } else {
                     msgBody.body.subtype = "start";
@@ -269,6 +278,11 @@ io.sockets.on('connection', function (socket) {
         		console.log("BROADCAST MSG=" + outMessage);
         	}
 
+            room.handleObjects.push({
+                uid: playerUid,
+                socket: socket
+            });
+
         } 
         else if (typeof(message) == "object" && data.type == "game") {
             if (!playRoom.checkUid(data.uuid)) {
@@ -280,9 +294,13 @@ io.sockets.on('connection', function (socket) {
         
     });
     //игрок вошел в игру
-    socket.on("enter", function(body, cb) {
+    socket.on("enter", function(inboxMsg, cb) {
+        var body = inboxMsg.body;
         console.log("Player Enter the Game!");
-
+        console.log("replace uid=" + body.playerUid);
+        console.dir(body);
+        //заменяем id игроков 
+        playerUid = body.playerUid;
         //FIXME - почем-то при вызове получается зависание браузера
         if (cb) {
             console.log(playerUid);
@@ -293,11 +311,31 @@ io.sockets.on('connection', function (socket) {
 
     // Unsubscribe after a disconnect event
     socket.on('disconnect', function () {
-        console.log();
-    	if (playerUid in playRoom.getAllActivePlayers()) {
-    		playRoom.freeRoom(socket);
-    		console.log("disconnect WAITING");
-    	}
+
+        var rooms = playRoom.getRooms();
+        var room, roomInfo;
+        for (var i=0; i < rooms.length; i++) {
+            room = rooms[i];
+            roomInfo = room.playersInfo;
+            if (roomInfo.length) {
+                roomInfo.forEach(function(playerInfo) {
+                    console.log("check for disconnect!");
+                    console.dir(playerInfo);
+                    if (playerUid == playerInfo['playerUid']) {
+                        console.log("Player leave game->cleaning");
+                        room.cleanRoom();
+                        io.sockets.emit('game' + i, {
+                            body: {
+                                type: 'end',
+                                result: 'disconnect',
+                                resultMsg: 'Игрок отсоединился'
+                            }
+                        });
+                    }
+                })
+            }
+        }
+
     });
     console.log("connection estabilished!");
 });

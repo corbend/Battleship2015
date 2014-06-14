@@ -15,20 +15,6 @@
 				var socket = io();
 				var gameUid = window.location.pathname.split("/").slice(-2)[0];
 				var sessionUid = window.location.pathname.split("/").slice(-2)[1];
-				
-				// socket.on('reset', function() {
-				// 	alert("SERVER restarted!")
-				// 	window.location = "/";
-				// });
-				//после редиректа на страницу игры посылаем сообщение что пользователь активен
-				socket.emit("enter"
-				, {
-					body: {
-						location: window.location?
-						gameUid: gameUid,
-						sessionUid: sessionUid
-					}
-				});
 
 				//получим номер игрока и кинем кубик
 				$.ajax({
@@ -40,8 +26,20 @@
 							try {
 								var data = typeof(res) == "string"? JSON.parse(res): res;
 								var newGame = new MarineBattle.GameState(2, socket);
+								//после редиректа на страницу игры посылаем сообщение что пользователь активен
+								socket.emit("enter"
+								, {
+									body: {
+										location: window.location?
+										gameUid: gameUid,
+										sessionUid: sessionUid,
+										playerUid: data.playerUid
+									}
+								});
+
 								newGame.open(gameUid, sessionUid);
 								newGame.setPlayerId(data.playerId);
+								newGame.setPlayerInfo("Uid", data.playerUid);
 								newGame.popStage("roll");
 								window.game = newGame;
 							} catch (e) {

@@ -6,6 +6,8 @@ var Room = function(idx) {
 	//статус игроков - готов, не готов
 	this.playerStatuses = [false, false];
 	this.playerUids = [];
+	this.playersInfo = [];
+	this.handleObjects = [];
 	this.ready = 0;
 	this.idx = idx;
 
@@ -22,6 +24,11 @@ var Room = function(idx) {
 		this.playerUids = [];
 		this.ready = 0;
 		this.unsetFrozen();
+	}
+
+	this.addPlayerInfo = function(info) {
+		//добавление информации об игроке
+		this.playersInfo.push(info);
 	}
 
 	this.freeRoom = function(sk) {
@@ -112,6 +119,9 @@ var PlayRoom = function(roomsCount) {
 	this.getRoom = function(roomId) {
 		return this.rooms[roomId];
 	}
+	this.getRooms = function() {
+		return this.rooms
+	}
 
 	this.showAll = function() {
 		return this.rooms.map(function(room) {
@@ -130,6 +140,7 @@ var PlayRoom = function(roomsCount) {
 
 		return roomCheck;
 	}
+
 	this.getAllActivePlayers = function() {
 		//возращает всех активных игроков
 		var players = [];
@@ -137,6 +148,11 @@ var PlayRoom = function(roomsCount) {
 			function(room) {
 				players = players.concat(room.players);
 			});
+	}
+
+	this.setPlayerInfo = function(gameId, info) {
+		var room = this.rooms[gameId];
+		room.addPlayerInfo(info);
 	}
 };
 

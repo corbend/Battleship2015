@@ -179,6 +179,8 @@
 		this.resources = [];
 
 		this.players = [1, 2];
+		//объект для хранения информации об игроке или игре
+		this._info = {};
 
 		this.log = function(txt) {var log = $("#log"); log.html(log.html() + "</br>" + txt)};
 		//делаем активным первого игрока для теста
@@ -344,6 +346,9 @@
 		this.getPlayerId = function() {
 			return this.playerId;
 		}
+		this.setPlayerInfo = function(key, value) {
+			this._info[key] = value;
+		}
 		this.setSessionId = function(v) {
 			if (!sessionId) {
 				sessionId = v;
@@ -488,7 +493,11 @@
 				}
 
 			} else if (data.type && data.type == "end") {
-				Message(ns.MapConfig.lossMessage);
+				if (!data.result) {
+					Message(ns.MapConfig.lossMessage);
+				} else {
+					Message(data.resultMsg);
+				}
 				window.location = "/end/" + me.getChannelId();
 			}
 		});
@@ -1152,7 +1161,7 @@
 					if (!selection) {
 						selection = context.data;
 					}
-					
+
 					if (
 						selection.rotateCW(
 							context.clientX,
